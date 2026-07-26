@@ -1087,7 +1087,11 @@ class DualPortfolioRunner:
 
     async def _refresh_research(self):
         """Refresh Yahoo Finance data and compute macro risk sentiment.
-        Shared across both portfolios as macro context."""
+        Shared across both portfolios as macro context.
+
+        Also pulls the OpenBB-style adapter (FRED macro rates + Deribit perp
+        funding/OI) and blends it with the YFinance score for a consolidated
+        regime read that gates trade aggressiveness."""
         try:
             await self.research.fetch_all()
             sentiment = self.research.compute_risk_sentiment()
@@ -1099,13 +1103,40 @@ class DualPortfolioRunner:
             dxy = sentiment.get("dxy_trend", "?")
             note = sentiment.get("correlation_note", "")
 
-            console.print(f"  [research] Yahoo Finance: risk_score={score:+.2f} "
-                          f"VIX={vix:.0f} equities={trend} DXY={dxy} | {note[:50]}")
+            # OpenBB adapter: FRED rates + Deribit funding/OI (best-effort)
+            obb_score = 0.0
+            obb_regime = "n/a"
+            try:
+                from .adapters.openbb_adapter import fetch_all_cached
+                obb = fetch_all_cached()
+                if "risk" in obb:
+                    obb_score = obb["risk"].get("score", 0)
+                    obb_regime = obb["risk"].get("regime", "n/a")
+            except Exception as oe:
+                console.print(f"  [research] ⚠ OpenBB adapter failed: {oe}")
 
-            # Inject risk sentiment into both portfolios' macro context
-            # Positive risk_score → boost longs, negative → boost shorts
-            self.steady._last_macro = {**self.steady._last_macro, "risk_sentiment": score}
-            self.rapid._last_macro = {**self.rapid._last_macro, "risk_sentiment": score}
+            # Consolidated score: weight YFinance 60% + OpenBB 40%
+            consolidated = round(0.6 * score + 0.4 * obb_score, 3)
+
+            console.print(f"  [research] YF: {score:+.2f} (VIX={vix:.0f} eq={trend} "
+                          f"DXY={dxy}) | OpenBB: {obb_score:+.2f} ({obb_regime}) "
+                          f"| consolidated={consolidated:+.2f} | {note[:40]}")
+
+            # Inject consolidated risk sentiment into both portfolios' macro context
+            self.steady._last_macro = {
+                **self.steady._last_macro,
+                "risk_sentiment": consolidated,
+                "yfinance_score": score,
+                "openbb_score": obb_score,
+                "openbb_regime": obb_regime,
+            }
+            self.rapid._last_macro = {
+                **self.rapid._last_macro,
+                "risk_sentiment": consolidated,
+                "yfinance_score": score,
+                "openbb_score": obb_score,
+                "openbb_regime": obb_regime,
+            }
 
         except Exception as e:
             console.print(f"  [research] ⚠ YFinance refresh failed: {e}")
