@@ -1,0 +1,151 @@
+{
+  "paper": {
+    "id": "ssrn-4631351",
+    "title": "Volume Weighted Average Price (VWAP): The Holy Grail for Day Trading Systems",
+    "authors": ["Carlo Zarattini", "Andrew Aziz"],
+    "institutions": ["Concretum Research", "Peak Capital Trading", "Bear Bull Traders"],
+    "date": "2023-11-13",
+    "url": "https://ssrn.com/abstract=4631351",
+    "pages": 26,
+    "abstract": "VWAP-based day trading strategy: long when price > VWAP, short when price < VWAP. Tested on QQQ/TQQQ 2018-2023. QQQ: $25K -> $192,656 (671%, MDD 9.4%, Sharpe 2.1). TQQQ: $25K -> $2,085,417 (8,242%, MDD 36.1%, Sharpe 1.7). Buy-and-hold QQQ: 126% (MDD 35.6%, Sharpe 0.7)."
+  },
+  "key_findings": [
+    {
+      "id": "F1",
+      "finding": "Price above/below VWAP predicts continuation",
+      "evidence": "Above VWAP candles repriced +$320 over 5 years; Below VWAP repriced -$280. 56% of candles above VWAP in uptrend.",
+      "application": "VWAP crossover is a valid trend signal for intraday trading"
+    },
+    {
+      "id": "F2",
+      "finding": "VWAP Trend Trading outperforms all SMA variants",
+      "evidence": "VWAP: 671% total return, Sharpe 2.1, MDD 9.4%. SMA9: 202% (Sharpe 1.3), SMA200: 135% (Sharpe 0.9). Buy&Hold: 126% (Sharpe 0.7).",
+      "application": "VWAP is superior to SMA9/20/100/200 for intraday trend detection"
+    },
+    {
+      "id": "F3",
+      "finding": "Low hit ratio but high gain:loss asymmetry",
+      "evidence": "17% hit ratio, but gains are 5.5x larger than losses (QQQ) and 5.48x (TQQQ). Max trade gain QQQ 6.5%, TQQQ 20.9%.",
+      "application": "Trend-following with wide stops and tight loss control is profitable despite low win rate"
+    },
+    {
+      "id": "F4",
+      "finding": "Time-of-day seasonality in VWAP profitability",
+      "evidence": "Most profits come from 9:30-12:00 ET and 15:00-16:00 ET. Midday (12:00-15:00) shows no significant trend.",
+      "application": "Avoid VWAP trading during midday hours; focus on open and close"
+    },
+    {
+      "id": "F5",
+      "finding": "Strategy is market-uncorrelated (beta ~ 0)",
+      "evidence": "Beta coefficient not statistically different from zero. Alpha = 38% annualized (QQQ), 93% (TQQQ), t-stat > 4.",
+      "application": "VWAP strategy provides true diversification; profits in both bull and bear markets"
+    },
+    {
+      "id": "F6",
+      "finding": "Commissions are the main cost driver",
+      "evidence": "TQQQ: $400,616 commissions on $2M profit. QQQ: $6,547 commissions on $192K profit. ~22,000 trades over 5.75 years.",
+      "application": "High-frequency VWAP requires low-cost execution; commission impact scales with leverage"
+    }
+  ],
+  "strategy_rules": {
+    "name": "VWAP Trend Trading",
+    "timeframe": "1-minute candles",
+    "session": "Regular trading hours only (9:30-16:00 ET), no overnight positions",
+    "entry_long": "First 1-min candle closes above VWAP at 9:31am ET",
+    "entry_short": "First 1-min candle closes below VWAP at 9:31am ET",
+    "exit_long": "1-min candle closes below VWAP (stop loss) or 4:00pm ET close",
+    "exit_short": "1-min candle closes above VWAP (stop loss) or 4:00pm ET close",
+    "position_sizing": "100% of available equity, no leverage (or 3x with TQQQ)",
+    "commission": "$0.0005 per share",
+    "slippage": "Assumed zero for small accounts; scales with size",
+    "vwap_formula": "sum(HLC_t * Volume_t) / sum(Volume_t) where HLC = (High+Low+Close)/3"
+  },
+  "performance_metrics": {
+    "QQQ": {
+      "total_return_pct": 671,
+      "avg_yearly_return_pct": 43,
+      "volatility_pct": 18,
+      "sharpe_ratio": 2.1,
+      "max_drawdown_pct": 9.4,
+      "total_trades": 21967,
+      "hit_ratio_pct": 17.0,
+      "gain_loss_ratio": 5.67,
+      "max_trade_gain_pct": 6.5,
+      "max_trade_loss_pct": -1.4,
+      "max_daily_gain_pct": 6.5,
+      "max_daily_loss_pct": -5.1,
+      "alpha_annualized_pct": 38,
+      "commissions_usd": 6547
+    },
+    "TQQQ": {
+      "total_return_pct": 8242,
+      "avg_yearly_return_pct": 116,
+      "volatility_pct": 54,
+      "sharpe_ratio": 1.7,
+      "max_drawdown_pct": 36.1,
+      "total_trades": 22000,
+      "hit_ratio_pct": 17.2,
+      "gain_loss_ratio": 5.48,
+      "max_trade_gain_pct": 20.9,
+      "max_trade_loss_pct": -4.1,
+      "max_daily_gain_pct": 20.9,
+      "max_daily_loss_pct": -22.7,
+      "alpha_annualized_pct": 93,
+      "commissions_usd": 400616
+    },
+    "buy_hold_QQQ": {
+      "total_return_pct": 126,
+      "avg_yearly_return_pct": 15,
+      "volatility_pct": 25,
+      "sharpe_ratio": 0.7,
+      "max_drawdown_pct": 35.6,
+      "max_daily_loss_pct": -12.3
+    }
+  },
+  "comparison_with_sma": {
+    "SMA9": {"total_return_pct": 202, "sharpe": 1.3, "mdd_pct": 41, "trades": 107067, "hit_ratio_pct": 30, "gain_loss": 2.4},
+    "SMA20": {"total_return_pct": 49, "sharpe": 0.5, "mdd_pct": 42, "trades": 69847, "hit_ratio_pct": 25, "gain_loss": 3.0},
+    "SMA100": {"total_return_pct": 83, "sharpe": 0.7, "mdd_pct": 17, "trades": 30924, "hit_ratio_pct": 18, "gain_loss": 4.8},
+    "SMA200": {"total_return_pct": 135, "sharpe": 0.9, "mdd_pct": 21, "trades": 22005, "hit_ratio_pct": 16, "gain_loss": 5.8}
+  },
+  "limitations": [
+    "Exploratory study; past performance not indicative of future results",
+    "Not suitable for multi-million dollar funds due to liquidity constraints",
+    "High commission sensitivity with leverage",
+    "Requires 1-minute data and intraday execution capability",
+    "Mean-reverting days cause significant losses (up to -22.7% daily on TQQQ)",
+    "No fundamental analysis; purely technical trend-following"
+  ],
+  "relevance_to_crypto": {
+    "applicability": "HIGH — crypto markets trade 24/7, so VWAP must be computed on rolling windows or anchored to session opens (UTC)",
+    "adaptations": [
+      "Use rolling 24h VWAP or anchor to daily open (00:00 UTC) instead of RTH",
+      "Crypto has no market close; use time-based exits (e.g., 4h, 8h, or trailing VWAP)",
+      "Higher volatility in crypto may require wider stops or reduced position sizing",
+      "Volume data quality varies by exchange; use high-liquidity pairs (BTC, ETH, SOL)",
+      "Consider funding rates for perpetual futures as additional signal"
+    ],
+    "kraken_specific": "Kraken provides OHLCV with volume via ccxt; VWAP computable from 1m or 15m candles"
+  },
+  "integration_notes": {
+    "hermes_trading": "Add as vwap_trend strategy alongside ICT and momentum strategies",
+    "backtesting": "Use existing backtest framework with 1m or 15m Kraken data",
+    "risk_management": "Apply existing daily loss limits and drawdown circuits",
+    "live_execution": "Mirror to LiveKrakenTrader with small_capital profile"
+  },
+  "crypto_backtest": {
+    "date": "2026-07-26",
+    "data": "Kraken 15m OHLCV, BTC/ETH/SOL/AVAX/LINK, ~7 days (672 bars)",
+    "fee_model": "0.52% round-trip taker",
+    "finding": "The naive paper port (0.15% band, exit on first VWAP touch) LOSES money on crypto 15m: 205 trades, 11.7% hit, G:L 0.14, -112% aggregate. Fee drag + chop dominate. This is the paper's own 'false VWAP breaks / mean-reverting day' failure mode, amplified by higher crypto range and per-trade fees.",
+    "parameter_sweep": {
+      "dist=0.15 hold=0": {"trades": 205, "hit_pct": 11.7, "ret_pct": -112.82, "gain_loss": 0.14},
+      "dist=0.5 hold=4": {"trades": 54, "hit_pct": 24.1, "ret_pct": -29.51, "gain_loss": 0.37},
+      "dist=0.8 hold=8": {"trades": 37, "hit_pct": 29.7, "ret_pct": -21.98, "gain_loss": 0.40},
+      "dist=1.0 hold=12": {"trades": 30, "hit_pct": 26.7, "ret_pct": -20.47, "gain_loss": 0.37},
+      "dist=1.5 hold=16": {"trades": 11, "hit_pct": 45.5, "ret_pct": 1.21, "gain_loss": 1.17}
+    },
+    "conclusion": "Only the most selective config (>=1.5% distance band + multi-bar hold) is marginally profitable on this window. +1.21% on 11 trades is thin and likely within noise. Deployed vwap_min_distance_pct=1.5 as the only viable setting, but this strategy is UNPROVEN on crypto and should be paper-tracked, not trusted with size, until MCPT confirms edge over a longer horizon.",
+    "verdict": "PAPER-TRACK ONLY — edge does not transfer naively from QQQ 1m to crypto 15m"
+  }
+}

@@ -138,6 +138,7 @@ class PriceAdapter:
             "atr": atr,
             "ema20": ema20,
             "closes": closes,
+            "candles": ohlcv,  # raw [ts, o, h, l, c, v] rows for VWAP / OHLCV strategies
             "volumes": [float(c[5]) for c in ohlcv
                         if len(c) > 5 and c[5] is not None],
             "above_ema": price > ema20,

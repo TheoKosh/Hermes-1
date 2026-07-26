@@ -356,9 +356,39 @@ class SubPortfolio:
         signal_weights = self.strategy.get("signal_weights", {})
         entry_threshold = self.strategy.get("entry_threshold", 0.3)
 
+        # --- VWAP TREND TRADING OVERRIDE ---
+        # Crypto-adapted from Zarattini & Aziz (2023), SSRN 4631351.
+        # Long above session VWAP, short below; flat inside the chop zone.
+        if self.strategy.get("use_vwap"):
+            from .vwap_strategy import generate_vwap_signal
+            candles = price_data.get("candles", [])
+            min_dist = self.strategy.get("vwap_min_distance_pct", 0.15)
+            vsig = generate_vwap_signal(candles, min_distance_pct=min_dist)
+
+            signal = vsig["signal"]
+            # Map distance-from-VWAP to a composite in [-1, 1] (paper: distance = imbalance).
+            composite = max(-1.0, min(1.0, vsig["distance_pct"] / 2.0))
+            confidence = vsig["confidence"]
+
+            decision = {
+                "composite_score": composite,
+                "signal": signal,
+                "confidence": confidence,
+                "confidence_label": "VWAP: " + vsig["reason"][:40],
+                "regime": {"trend": "n/a", "volatility": "n/a", "sub_strategy": "vwap"},
+                "factors": {"vwap": {"vwap": vsig["vwap"], "distance_pct": vsig["distance_pct"]}},
+                "hypothesis": f"VWAP trend: {vsig['reason']}",
+                "evidence": f"price={vsig['price']} vwap={vsig['vwap']} dist={vsig['distance_pct']}%",
+                "falsification": "Invalidated when a candle closes back through VWAP",
+                "reasoning": f"VWAP {signal}: {vsig['reason']}",
+                "size_multiplier": 1.0,
+            }
+            reg_str = "vwap"
+            conf_label = decision["confidence_label"]
+
         # --- ICT STRATEGY OVERRIDE ---
         # If use_ict is set, use the ICT signal engine instead of composite RSI
-        if self.strategy.get("use_ict"):
+        elif self.strategy.get("use_ict"):
             from .ict_strategy import ICTStrategy
             if not hasattr(self, "_ict_engine"):
                 self._ict_engine = ICTStrategy()
