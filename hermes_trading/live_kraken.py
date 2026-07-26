@@ -71,8 +71,12 @@ class LiveKrakenTrader:
         self.max_drawdown_pct = 15.0       # 15% peak-to-trough kill switch
         self.stop_loss_pct = 3.0           # 3% stop
         self.take_profit_pct = 6.0         # 6% target = 1:2 R:R
-        self.position_pct = 0.15           # 15% of equity per position
-        self.max_position_bump_pct = 0.25  # hard cap when bumping to exchange min
+        self.position_pct = 0.35           # 35% of equity per position
+        self.max_position_bump_pct = 0.50  # 50% bump cap — lets small accounts fill
+                                            # BTC/ETH/SHIB-class min sizes without
+                                            # going all-in; still bounds single-position
+                                            # risk at half equity if the market moves
+                                            # against us
         self.min_notional_usd = 1.0        # skip entries below this notional
 
         # State
@@ -126,8 +130,8 @@ class LiveKrakenTrader:
             self.max_drawdown_pct = 15.0
             self.stop_loss_pct = 3.0
             self.take_profit_pct = 6.0
-            self.position_pct = 0.15
-            self.max_position_bump_pct = 0.25
+            self.position_pct = 0.35
+            self.max_position_bump_pct = 0.50
         else:
             raise ValueError(f"unknown profile: {profile}")
 
@@ -490,6 +494,76 @@ class LiveKrakenTrader:
             console.print(f"  [live] ⚠ Trade log write failed: {e}")
 
         self._save_state()
+
+
+    async def scan(self) -> dict:
+        """
+        Lightweight market scan: pick a long from a small liquid basket.
+
+        Scoped on purpose — this is not a full strategy engine. It simply
+        finds the asset with the strongest oversold bounce setup (RSI < 30)
+        among ~10 liquid pairs, limited to 1 candidate to avoid overtrading
+        a tiny account. Returns {asset: {signal, price}} or {} if nothing fits.
+        """
+        if not self.enabled:
+            return {}
+
+        basket = [
+            "BTC/USD", "ETH/USD", "SOL/USD", "AVAX/USD", "LINK/USD",
+            "XRP/USD", "DOGE/USD", "ADA/USD", "SUI/USD", "HBAR/USD",
+        ]
+        ex = await self._get_exchange()
+        bal = await self.get_balance()
+        usd = bal["usd"]
+        if usd <= 0:
+            return {}
+
+        # Skip if daily loss or drawdown circuit tripped
+        if self.trading_halted():
+            return {}
+
+        best = None  # (score, asset, signal, price)
+        try:
+            for sym in basket:
+                try:
+                    ohlcv = await ex.fetch_ohlcv(sym, timeframe="15m", limit=30)
+                except Exception:
+                    continue
+                if not ohlcv or len(ohlcv) < 15:
+                    continue
+                closes = [float(c[4]) for c in ohlcv if c and c[4] is not None]
+                if len(closes) < 15:
+                    continue
+
+                # Inline RSI-14 (same impl as PriceAdapter)
+                deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+                gains = [d if d > 0 else 0.0 for d in deltas[-14:]]
+                losses = [-d if d < 0 else 0.0 for d in deltas[-14:]]
+                avg_gain = sum(gains) / 14.0
+                avg_loss = sum(losses) / 14.0
+                if avg_loss == 0:
+                    rsi = 100.0
+                else:
+                    rs = avg_gain / avg_loss
+                    rsi = 100.0 - (100.0 / (1.0 + rs))
+                if rsi >= 30:
+                    continue  # not oversold
+
+                price = closes[-1]
+                # score = how oversold (higher = stronger signal)
+                score = 30.0 - rsi
+                if best is None or score > best[0]:
+                    best = (score, sym, "long", price)
+        except Exception as e:
+            console.print(f"  [live] ⚠ scan error: {e}")
+            return {}
+
+        if best is None:
+            return {}
+
+        _, asset, signal, price = best
+        console.print(f"  [live] 🔍 scan pick: {asset} rsi<30 -> {signal} @ ${price:.4f}")
+        return {asset: {"signal": signal, "price": float(price)}}
 
     async def close(self):
         if self.exchange:

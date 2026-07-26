@@ -175,6 +175,17 @@ class MultiStrategyRunner:
                                 "signal": pos.get("side", "flat"),
                                 "price": float(entry_px),
                             }
+
+                        # Fallback: when the ict_prop paper portfolio has no open
+                        # entries, the live account sits idle. Scan a small liquid
+                        # basket and let the live trader place its own orders so
+                        # funds actually get used.
+                        if not live_signals:
+                            try:
+                                live_signals = await self.live_trader.scan()
+                            except Exception as e:
+                                console.print(f"[red]✗ live live_scan error: {e}[/]")
+
                         try:
                             await self.live_trader.tick(live_signals)
                         except Exception as e:
