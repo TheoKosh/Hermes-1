@@ -1,0 +1,74 @@
+{
+  "paper": {
+    "id": "ssrn-3374195",
+    "title": "Backtesting",
+    "authors": ["Enrico Schumann"],
+    "institutions": ["enricoschumann.net"],
+    "date": "2018-12",
+    "url": "https://ssrn.com/abstract=3374195",
+    "pages": 89,
+    "note": "Draft chapter for 2nd ed. of 'Numerical Methods and Optimization in Finance' (Gilli, Maringer, Schumann, 2019).",
+    "type": "METHODOLOGY — how to backtest correctly, not a single tradable strategy",
+    "abstract": "A rigorous treatment of what backtesting is, why it is difficult and perilous (over-fitting, look-ahead, survivorship, small samples), and how to do it defensibly (walk-forward, sensitivity analysis, replication, meta-analysis). Uses MA-crossover, CAPE valuation timing, and industry momentum as worked examples on US equity data."
+  },
+  "key_findings": [
+    {
+      "id": "F1",
+      "finding": "Optimized backtests overfit trivially — even on random data",
+      "evidence": "MA-crossover (m=10/30) on random walks beats buy-and-hold ~50/50 (no edge). But grid-search optimizing fast in 1..20 and slow in 21..60 makes it 'beat' the market in ~95% of random runs (median excess +19%). The improvement is pure data-snooping.",
+      "application": "Never trust an in-sample optimized result. A grid search WILL find a winner on noise."
+    },
+    {
+      "id": "F2",
+      "finding": "In-sample results are worthless; all backtests need out-of-sample",
+      "evidence": "Financial models are 'sensitive' — tiny input changes cause large result changes (e.g. Oct 19 1987 -20.5%). Missing the 10 best S&P days = -50% wealth; avoiding 10 worst = +80%.",
+      "application": "Every strategy must be validated out-of-sample via WALK-FORWARD: split into N subperiods, tune only on in-sample part, concatenate out-of-sample parts."
+    },
+    {
+      "id": "F3",
+      "finding": "Test sensitivity, not the single best variant",
+      "evidence": "Goal is a model that works 'OK-ish' across many parameter variants, not the best-fit optimum. Grossly overfit strategies break down fast on new data.",
+      "application": "Sweep parameters and require the strategy to be profitable across a broad neighbourhood, not just at one cherry-picked point."
+    },
+    {
+      "id": "F4",
+      "finding": "Survivorship bias inflates results ~7-8% per year",
+      "evidence": "Gilli & Schumann (2017): using only current index components (dropping bankruptcies) gave ~7%/yr survivorship bias on German HDAX. Daniel et al. (2009) found up to 8% inflation for momentum/buy-the-dip.",
+      "application": "Backtest on the assets that were tradable AT THE TIME, not today's survivors. For crypto: don't only test coins still listed."
+    },
+    {
+      "id": "F5",
+      "finding": "Sanity-check against plausible reward/risk",
+      "evidence": "Historical equity reward-to-risk ~0.3. A claimed equity Sharpe of 6 is not credible. Outlandish returns / no drawdowns / weird parameter values are red flags.",
+      "application": "If a crypto strategy backtest shows Sharpe > 3 or no drawdown, suspect a bug (look-ahead, fee omission) before believing it."
+    },
+    {
+      "id": "F6",
+      "finding": "Check code by running on random data ('can it see the future?')",
+      "evidence": "A correct strategy on zero-mean random data should NOT systematically beat buy-and-hold. If it does, you have look-ahead or a bug.",
+      "application": "Look-ahead detector: run the signal engine on synthetic random walks; mean excess return should be ~0."
+    },
+    {
+      "id": "F7",
+      "finding": "Momentum (buy top-k by trailing return) is the most-replicated anomaly",
+      "evidence": "Jegadeesh & Titman (1993); Moskowitz & Grinblatt (1999) show industry momentum. Worked example: hold the 10 highest-return sectors over the past year, equal weight, rebalance monthly.",
+      "application": "Cross-sectional momentum is a defensible baseline strategy to test on a crypto basket."
+    }
+  ],
+  "recommended_methodology": {
+    "walk_forward": "Split history into N windows; each has in-sample (tune) + out-of-sample (evaluate). Concatenate OOS segments. Report OOS-only performance.",
+    "sensitivity": "Evaluate a grid of parameters. A robust strategy is profitable across most of the grid, not at one point.",
+    "random_data_control": "Run the strategy on zero-mean random walks. Systematic outperformance => look-ahead bug.",
+    "biases_to_avoid": ["look-ahead", "survivorship", "price-impact / slippage on large size", "data-snooping from repeated tests"],
+    "sanity_bounds": {"max_credible_sharpe": 3.0, "historical_equity_reward_to_risk": 0.3}
+  },
+  "worked_strategies": {
+    "ma_crossover": "Long when fast MA > slow MA, else cash. Params (fast, slow).",
+    "cape_valuation_timing": "Exit market when CAPE in top quantile q (avoid high valuation).",
+    "industry_momentum": "Hold top-k assets by trailing return, equal weight, rebalance monthly."
+  },
+  "integration_notes": {
+    "hermes_trading": "Implemented as hermes_trading/schumann_backtest.py — walk-forward + sensitivity + random-data look-ahead control, runnable on real Kraken data.",
+    "usage": "Validates existing strategies (VWAP, momentum, MA-cross) with the paper's discipline before any capital is committed."
+  }
+}
