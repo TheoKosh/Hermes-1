@@ -1,0 +1,7 @@
+asset: BTC/USDT
+target_return_30d: 0.15
+max_drawdown: 0.1
+min_sharpe: 1.2
+failure_below: -0.04
+reflection_every: 5
+one_variable_only: true

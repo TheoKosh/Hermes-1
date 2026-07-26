@@ -1,0 +1,15 @@
+version: '03'
+entry:
+  indicator: composite
+  direction: both
+entry_threshold: 0.3          # minimum |composite| to trigger entry
+signal_weights:               # multi-factor fusion weights
+  rsi: 0.35
+  sentiment: 0.30
+  onchain: 0.10
+  macro: 0.25
+stop_loss_pct: 3.0
+take_profit_multiple: 2.0
+position_size_r: 0.15
+max_concurrent_positions: 5
+risk_per_trade_pct: 2.0

@@ -1,0 +1,7 @@
+.env
+__pycache__
+.venv
+uv.lock
+state/*.json
+state/*.jsonl
+.DS_Store
