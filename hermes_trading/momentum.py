@@ -15,7 +15,6 @@ Usage:
     top = await scanner.scan_top_performers(min_rank=50, limit=20)
 """
 import asyncio
-import os
 from datetime import datetime, timezone
 
 import httpx

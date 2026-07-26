@@ -21,7 +21,6 @@ OUTPUT:
     "reasoning": "RSI oversold (0.8) + sentiment bullish (0.3) → long"
   }
 """
-import math
 
 
 def _clamp(x: float, lo: float = -1.0, hi: float = 1.0) -> float:

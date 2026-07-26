@@ -10,18 +10,13 @@ Output: heartbeat_test_{id}.json per strategy, shared trades.jsonl tagged
 with portfolio=strategy_id.
 """
 import asyncio
+import hashlib
 import json
 import os
-from datetime import datetime, timezone
-from pathlib import Path
-
-import yaml
 from rich.console import Console
 from rich.table import Table
 
 from .loop import SubPortfolio, STATE_DIR, TRADES_FILE, TICK_SECONDS, MAX_CONSECUTIVE_FAILURES
-from .adapters.price import PriceAdapter
-from .adapters.macro import MacroAdapter
 from .adapters.hyperliquid import HyperliquidAdapter
 from .adapters.yfinance_research import YFinanceResearch
 
@@ -65,11 +60,21 @@ class MultiStrategyRunner:
         from .signal_alerts import SignalAlertSystem
         self.alerts = SignalAlertSystem(STATE_DIR)
 
-        # Live Kraken trader — executes REAL trades with real money
-        # Default to small_capital mode since big funds haven't arrived yet
+        # Live Kraken trader — executes REAL trades with real money.
+        # Only enabled when the worker runs in live mode AND the operator
+        # has explicitly accepted risk. Paper mode never places real orders.
         from .live_kraken import LiveKrakenTrader
-        self.live_trader = LiveKrakenTrader(STATE_DIR)
-        self.live_trader.set_risk_profile("small_capital")
+        live_enabled = (
+            mode == "live"
+            and os.environ.get("HERMES_TRADING_I_ACCEPT_RISK", "false").lower() == "true"
+        )
+        self.live_trader = LiveKrakenTrader(STATE_DIR, enabled=live_enabled)
+        profile = os.environ.get("HERMES_LIVE_RISK_PROFILE", "small_capital")
+        self.live_trader.set_risk_profile(profile)
+        if self.live_trader.enabled:
+            console.print(f"  [bold red]LIVE EXECUTION ARMED[/] — profile={profile}")
+        else:
+            console.print(f"  [dim]Live execution disabled (mode={mode}) — paper only[/]")
         self._live_tick_counter = 0
 
         # Load strategies
@@ -152,21 +157,28 @@ class MultiStrategyRunner:
                     }
                     self.alerts.check_and_alert("ict_prop", prop_hb, prop.positions.copy())
 
-                    # Execute REAL trades mirroring ict_prop signals
-                    # Run live trader every 2nd tick (slower cadence to avoid overtrading)
+                    # Execute REAL trades mirroring ict_prop signals.
+                    # No-op unless live execution is armed (see __init__).
                     self._live_tick_counter += 1
-                    if self._live_tick_counter % 2 == 0:
-                        # Build signals dict from ict_prop's last known positions
-                        # If ict_prop entered a position, mirror it with real money
+                    if self.live_trader.enabled and self._live_tick_counter % 2 == 0:
+                        # Paper positions use "entry_price"; the live trader expects
+                        # "price". Reading the wrong key silently produced price=0
+                        # and every mirrored entry was skipped.
                         live_signals = {}
                         for asset, pos in prop.positions.items():
-                            if pos is not None:
-                                live_signals[asset] = {
-                                    "signal": pos.get("side", "flat"),
-                                    "price": pos.get("entry_price", 0),
-                                }
-                        # Also pass current holdings for management
-                        await self.live_trader.tick(live_signals)
+                            if not pos:
+                                continue
+                            entry_px = pos.get("entry_price") or pos.get("entry") or 0
+                            if entry_px <= 0:
+                                continue
+                            live_signals[asset] = {
+                                "signal": pos.get("side", "flat"),
+                                "price": float(entry_px),
+                            }
+                        try:
+                            await self.live_trader.tick(live_signals)
+                        except Exception as e:
+                            console.print(f"[red]✗ live trader error: {e}[/]")
 
                 # Print comparison table every 20 ticks (~10 min at 30s)
                 if self._tick_count % 20 == 0:
@@ -188,10 +200,43 @@ class MultiStrategyRunner:
             )
             await asyncio.sleep(min_tick)
 
+    async def shutdown(self):
+        """Close every exchange session so aiohttp connectors don't leak."""
+        closers = [
+            ("kraken", getattr(self, "kraken", None)),
+            ("xstocks", getattr(self, "xstocks", None)),
+            ("hyperliquid", getattr(self, "hyperliquid", None)),
+            ("live_trader", getattr(self, "live_trader", None)),
+        ]
+        for name, obj in closers:
+            close = getattr(obj, "close", None)
+            if close is None:
+                continue
+            try:
+                result = close()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as e:
+                console.print(f"  [shutdown] {name}: {e}")
+
+        for p in self.portfolios.values():
+            close = getattr(getattr(p, "price_adapter", None), "close", None)
+            if close is None:
+                continue
+            try:
+                result = close()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                pass
+        console.print("  [shutdown] exchange sessions closed")
+
     def _get_strategy_basket(self, strategy_id: str) -> list:
         """Assign a rotating subset of the basket to each strategy.
         50 pairs per strategy, offset by strategy index to maximize coverage."""
-        idx = hash(strategy_id) % max(1, len(self.basket))
+        # NOTE: uses a stable hash — Python's builtin hash() is randomized per
+        # process for str, so baskets would shuffle on every restart.
+        idx = int(hashlib.md5(strategy_id.encode()).hexdigest(), 16) % max(1, len(self.basket))
         subset_size = min(50, len(self.basket))
         rotated = self.basket[idx:] + self.basket[:idx]
         return rotated[:subset_size]
@@ -256,9 +301,18 @@ class MultiStrategyRunner:
         table.add_column("DD%", justify="right")
 
         # Read trade stats from trades.jsonl
+        all_trades = []
         try:
-            all_trades = [json.loads(l) for l in open(TRADES_FILE) if l.strip()]
-        except:
+            with open(TRADES_FILE) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        all_trades.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue  # skip corrupt line, keep the rest
+        except (OSError, FileNotFoundError):
             all_trades = []
 
         for ts_def in self.test_strategies:

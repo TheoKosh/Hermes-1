@@ -105,20 +105,30 @@ class PriceAdapter:
     async def fetch(self) -> dict:
         exchange = await self._get_exchange()
 
-        try:
-            # fetch ticker
-            ticker = await exchange.fetch_ticker(self.asset)
-            price = float(ticker["last"])
+        # fetch ticker — illiquid/untraded pairs can report last=None,
+        # so fall back to close/bid-ask midpoint before giving up.
+        ticker = await exchange.fetch_ticker(self.asset)
+        raw_price = ticker.get("last") or ticker.get("close")
+        if raw_price is None:
+            bid, ask = ticker.get("bid"), ticker.get("ask")
+            if bid and ask:
+                raw_price = (float(bid) + float(ask)) / 2
+        if raw_price is None:
+            raise SchemaError(f"price adapter: {self.asset} has no usable price "
+                              f"(last/close/bid-ask all empty — illiquid pair)")
+        price = float(raw_price)
 
-            # fetch OHLCV for RSI (15m candles, last 50)
-            ohlcv = await exchange.fetch_ohlcv(self.asset, timeframe="15m", limit=50)
-            closes = [c[4] for c in ohlcv]
-            rsi = self._compute_rsi(closes)
-            atr = self._compute_atr(ohlcv)
-            ema20 = self._compute_ema(closes, 20)
+        # fetch OHLCV for RSI (15m candles, last 50)
+        ohlcv = await exchange.fetch_ohlcv(self.asset, timeframe="15m", limit=50)
+        # Drop candles with null closes rather than crashing on float(None)
+        ohlcv = [c for c in ohlcv if c and len(c) > 4 and c[4] is not None]
+        if not ohlcv:
+            raise SchemaError(f"price adapter: {self.asset} returned no valid candles")
 
-        finally:
-            pass  # connection pooled; don't close per-call
+        closes = [float(c[4]) for c in ohlcv]
+        rsi = self._compute_rsi(closes)
+        atr = self._compute_atr(ohlcv)
+        ema20 = self._compute_ema(closes, 20)
 
         result = {
             "schema_version": SCHEMA_VERSION,
@@ -128,7 +138,8 @@ class PriceAdapter:
             "atr": atr,
             "ema20": ema20,
             "closes": closes,
-            "volumes": [c[5] for c in ohlcv] if len(ohlcv) > 0 and len(ohlcv[0]) > 5 else [],
+            "volumes": [float(c[5]) for c in ohlcv
+                        if len(c) > 5 and c[5] is not None],
             "above_ema": price > ema20,
             "timestamp": now_iso(),
         }

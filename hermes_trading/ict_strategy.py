@@ -15,7 +15,6 @@ Adapted for crypto on Kraken with:
   - Cross-exchange price verification (Coinbase + Kraken)
 """
 
-import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 

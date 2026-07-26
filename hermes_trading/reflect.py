@@ -10,7 +10,6 @@ import json
 import subprocess
 import sys
 import yaml
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 

@@ -131,5 +131,5 @@ def _fmt(x, pct=False) -> str:
         if pct:
             return f"{x:.1%}"
         return f"{x:.2f}"
-    except:
+    except (TypeError, ValueError):
         return str(x)

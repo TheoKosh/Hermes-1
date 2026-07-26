@@ -41,8 +41,16 @@ def main():
     from .test_runner import MultiStrategyRunner
 
     runner = MultiStrategyRunner(goal=goal, mode=mode, budget_per_strategy=budget)
+
+    async def _run():
+        try:
+            await runner.run()
+        finally:
+            # Always release exchange sessions, even on crash/interrupt
+            await runner.shutdown()
+
     try:
-        asyncio.run(runner.run())
+        asyncio.run(_run())
     except KeyboardInterrupt:
         print("\n[SHUTDOWN] Received interrupt, exiting gracefully.")
         sys.exit(0)

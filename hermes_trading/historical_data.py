@@ -4,11 +4,8 @@ historical_data.py — Fetch historical OHLCV data from Coinbase for backtesting
 Pulls 15m candles for a basket of assets using ccxt, saves to CSV per symbol,
 compatible with the backtest framework's load_csv_panel().
 """
-import asyncio
-import os
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 

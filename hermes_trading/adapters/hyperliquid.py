@@ -96,7 +96,7 @@ class HyperliquidAdapter:
             dt = datetime.fromisoformat(self._last_update)
             age = (datetime.now(timezone.utc) - dt).total_seconds()
             return age > max_age_seconds
-        except:
+        except (TypeError, ValueError):
             return True
 
     def compute_signal(self, symbol: str, base_price: float) -> dict:

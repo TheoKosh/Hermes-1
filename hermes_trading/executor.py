@@ -9,7 +9,6 @@ Wraps ccxt order placement with safety rails:
   - P&L calculation from actual fills
   - Graceful failure (never crashes the loop)
 """
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
