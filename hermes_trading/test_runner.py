@@ -66,9 +66,10 @@ class MultiStrategyRunner:
         self.alerts = SignalAlertSystem(STATE_DIR)
 
         # Live Kraken trader — executes REAL trades with real money
-        # Mirrors ict_prop signals with real orders on Kraken
+        # Default to small_capital mode since big funds haven't arrived yet
         from .live_kraken import LiveKrakenTrader
         self.live_trader = LiveKrakenTrader(STATE_DIR)
+        self.live_trader.set_risk_profile("small_capital")
         self._live_tick_counter = 0
 
         # Load strategies

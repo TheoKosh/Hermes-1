@@ -24,6 +24,26 @@ from rich.console import Console
 console = Console()
 
 
+class SmallCapitalMode:
+    """
+    Risk preset for sub-$100 accounts where big funds haven't arrived yet.
+
+    Philosophy:
+      - Use higher risk per trade to generate meaningful P&L on tiny capital.
+      - Allow more concurrent positions to increase throughput.
+      - Keep R:R ≥ 1.5x so occasional wins offset more frequent small losses.
+      - Maintain a daily-loss circuit so a bad session doesn't zero the account.
+
+    Parameters (adjustable in LiveKrakenTrader.risk_profile):
+      risk_per_trade_pct : 2.0%  (~$0.35 per trade on $17)
+      max_positions      : 5     (~$13 deployed at once on $17)
+      max_daily_loss_pct : 5.0%  (~$0.87 daily loss ceiling)
+      stop_loss_pct      : 3.0%
+      take_profit_pct    : 6.0%  (R:R 1:2 after fees)
+      position_pct       : 15%   of equity per position
+    """
+
+
 class LiveKrakenTrader:
     """
     Executes real trades on Kraken based on ICT strategy signals.
@@ -38,15 +58,17 @@ class LiveKrakenTrader:
         self.api_secret = os.environ.get("KRAKEN_API_SECRET", "")
         self.exchange = None
 
-        # Risk parameters (matching Starter Eval)
-        self.risk_per_trade_pct = 0.5
-        self.max_positions = 2
-        self.max_daily_loss_pct = 3.0
-        self.stop_loss_pct = 2.0
-        self.take_profit_pct = 4.0  # R:R 1:2
+        # Small-capital aggressive risk profile
+        # Override these via set_risk_profile() for different modes
+        self.risk_per_trade_pct = 2.0      # 2% equity at risk per trade
+        self.max_positions = 5             # up to 5 concurrent positions
+        self.max_daily_loss_pct = 5.0      # 5% daily loss circuit
+        self.stop_loss_pct = 3.0           # 3% stop
+        self.take_profit_pct = 6.0         # 6% target = 1:2 R:R
+        self.position_pct = 0.15           # 15% of equity per position
 
         # State
-        self.positions = {}  # asset -> {side, entry, stop, target, amount, order_id}
+        self.positions = {}  # asset -> {side, entry, stop, target, amount, order_id, cost}
         self.starting_equity = None
         self.daily_start_equity = None
         self.current_date = None
@@ -54,6 +76,35 @@ class LiveKrakenTrader:
         self.trade_count = 0
 
         self._load_state()
+
+    def set_risk_profile(self, profile: str = "small_capital"):
+        """
+        Switch risk presets without restarting.
+          small_capital → high-risk small-capital mode (default)
+          eval_strict   → Starter Eval rules (0.5% risk, 2 positions, 3% DD)
+        """
+        if profile == "eval_strict":
+            self.risk_per_trade_pct = 0.5
+            self.max_positions = 2
+            self.max_daily_loss_pct = 3.0
+            self.stop_loss_pct = 2.0
+            self.take_profit_pct = 4.0
+            self.position_pct = 0.05
+        elif profile == "small_capital":
+            self.risk_per_trade_pct = 2.0
+            self.max_positions = 5
+            self.max_daily_loss_pct = 5.0
+            self.stop_loss_pct = 3.0
+            self.take_profit_pct = 6.0
+            self.position_pct = 0.15
+        else:
+            raise ValueError(f"unknown profile: {profile}")
+
+        console.print(f"  [live] Risk profile → {profile}: "
+                      f"risk={self.risk_per_trade_pct}% pos={self.max_positions} "
+                      f"DD={self.max_daily_loss_pct}% stop={self.stop_loss_pct}% "
+                      f"TP={self.take_profit_pct}%")
+        self._save_state()
 
     def _load_state(self):
         if self.state_file.exists():
@@ -211,12 +262,10 @@ class LiveKrakenTrader:
         bal = await self.get_balance()
         usd = bal["usd"]
 
-        # Position sizing: risk_per_trade_pct of equity
-        position_value = usd * (self.risk_per_trade_pct / 100) * 2  # use 1% of capital per trade
-        position_value = min(position_value, usd * 0.25)  # max 25% of available USD
-
+        # Position sizing: position_pct of equity per position
+        position_value = usd * self.position_pct
         if position_value < 1.0:
-            console.print(f"  [live] ⚠ Not enough USD for {asset} (need min $1, have ${usd:.2f})")
+            console.print(f"  [live] ⚠ Insufficient USD for {asset} (need min $1, have ${usd:.2f})")
             return
 
         # Calculate amount
