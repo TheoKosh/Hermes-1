@@ -694,11 +694,15 @@ class SubPortfolio:
 
     def _write_heartbeat(self, ts, heartbeat_assets):
         hb = {
-            "timestamp": ts, "portfolio": self.name, "mode": self.mode,
+            "timestamp": ts, "portfolio": self.name, "name": self.name, "mode": self.mode,
             "basket": self.assets, "assets": heartbeat_assets,
             "trade_count": self.trade_count, "equity": round(self.current_equity, 2),
+            "starting_equity": round(self.starting_equity, 2),
             "peak_equity": round(self.peak_equity, 2),
             "drawdown_pct": round(self._drawdown_pct(), 2),
+            "daily_loss_pct": round(self._daily_loss_pct, 2),
+            "daily_trading_halted": self._daily_trading_halted,
+            "open_positions": sum(1 for p in self.positions.values() if p),
         }
         with open(self.heartbeat_file, "w") as f:
             json.dump(hb, f, indent=2)

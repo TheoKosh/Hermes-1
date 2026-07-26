@@ -35,7 +35,7 @@ TEST_STRATEGIES = [
         "id": "mean_reversion",
         "name": "Mean Reversion (RSI) — LIVE TRACKING",
         "description": "Classic RSI oversold/overbought. OOS Sharpe=-2.50. Reduced budget for live tracking.",
-        "budget": 0.25,
+        "budget": 25.0,
         "strategy": {
             **BASE,
             "version": "test-mr-v1",
@@ -53,7 +53,7 @@ TEST_STRATEGIES = [
         "id": "trend_following",
         "name": "Trend Following (EMA) ⭐ PROMISING",
         "description": "Follows EMA20 direction. OOS Sharpe=1.76, Win=40%. Most reliable promising strategy (20 OOS trades). Full budget.",
-        "budget": 0.25,
+        "budget": 25.0,
         "strategy": {
             **BASE,
             "version": "test-tf-v1",
@@ -73,7 +73,7 @@ TEST_STRATEGIES = [
         "id": "breakout",
         "name": "Breakout (Vol + Price) ⭐ PROMISING",
         "description": "Enters on momentum breakouts. OOS Sharpe=2.08, Win=45.5%. Full budget. Only 11 OOS trades — provisional.",
-        "budget": 0.25,
+        "budget": 25.0,
         "strategy": {
             **BASE,
             "version": "test-bo-v1",
@@ -93,7 +93,7 @@ TEST_STRATEGIES = [
         "id": "bollinger",
         "name": "Bollinger Band Reversion — REDUCED BUDGET",
         "description": "Mean-reversion at Bollinger extremes. OOS Sharpe=-1.08. Reduced budget.",
-        "budget": 0.25,
+        "budget": 25.0,
         "strategy": {
             **BASE,
             "version": "test-bb-v1",
@@ -111,7 +111,7 @@ TEST_STRATEGIES = [
         "id": "contrarian_funding",
         "name": "Contrarian (Funding Rate) ⭐ PROMISING",
         "description": "Fades extreme Hyperliquid funding rates. OOS Sharpe=4.62 (flagged suspicious >3), Win=63.6%. Full budget but only 11 trades — treat with caution.",
-        "budget": 0.25,
+        "budget": 25.0,
         "strategy": {
             **BASE,
             "version": "test-cf-v1",
@@ -131,7 +131,7 @@ TEST_STRATEGIES = [
         "id": "composite_conservative",
         "name": "Composite Conservative — REDUCED BUDGET",
         "description": "The steady strategy. OOS Sharpe=-0.86 in backtest. Reduced budget — live results were better than backtest.",
-        "budget": 0.25,
+        "budget": 25.0,
         "strategy": {
             **BASE,
             "version": "test-cc-v1",
